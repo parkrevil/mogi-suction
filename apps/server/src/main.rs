@@ -2,6 +2,7 @@ use shared;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::error::Error;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -33,9 +34,14 @@ async fn handle_connection(mut socket: TcpStream) -> Result<(), Box<dyn Error>> 
         let received = String::from_utf8_lossy(&buffer[..n]);
         println!("Received: {}", received.trim());
         
-        // Echo back the received message
-        let response = format!("Server received: {}", received.trim());
+        // Send pong response with timestamp
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let response = format!("pong {}", timestamp);
         socket.write_all(response.as_bytes()).await?;
+        println!("Sent: {}", response);
     }
     
     Ok(())
