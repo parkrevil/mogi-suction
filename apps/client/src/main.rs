@@ -1,33 +1,92 @@
-use tokio::net::TcpStream;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{sleep, Duration};
+use pcap::{Capture, Device};
+use serde::Serialize;
 use std::error::Error;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
-    println!("Connected to server");
+#[derive(Debug, Serialize)]
+struct PacketInfo {
+    direction: String,
+    hex_data: String,
+}
 
-    let mut buffer = [0; 1024];
-    let mut count = 0;
+fn capture_packets() -> Result<(), Box<dyn Error>> {
+    let devices = Device::list()?;
+
+    if devices.is_empty() {
+        return Err("No available network interfaces found.".into());
+    }
+
+    let device = devices.first().unwrap();
+
+    println!("Selected interface: {}", device.name);
+
+    let mut cap = Capture::from_device(device.clone())?
+        .promisc(true)
+        .snaplen(65535)
+        .open()?;
+
+    cap.filter("port 16000", true)?;
+
+    println!("Capturing packets...");
+
+    let mut packet_count = 0;
 
     loop {
-        count += 1;
-        let ping = format!("ping {}", count);
-        stream.write_all(ping.as_bytes()).await?;
-        println!("Sent: {}", ping);
+        match cap.next_packet() {
+            Ok(packet) => {
+                packet_count += 1;
 
-        let n = stream.read(&mut buffer).await?;
-        if n == 0 {
-            println!("Server disconnected");
-            break;
+                let packet_info = analyze_packet(&packet, packet_count);
+
+                if let Ok(json) = serde_json::to_string_pretty(&packet_info) {
+                    println!("패킷 #{}: {}", packet_count, json);
+                }
+            }
+            Err(e) => {
+                eprintln!("패킷 캡처 오류: {}", e);
+                break;
+            }
         }
-        
-        let response = String::from_utf8_lossy(&buffer[..n]);
-        println!("Received: {}", response);
-
-        sleep(Duration::from_secs(1)).await;
     }
 
     Ok(())
-} 
+}
+
+fn analyze_packet(packet: &pcap::Packet, _packet_num: u32) -> PacketInfo {
+    let hex_data = packet
+        .data
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<Vec<String>>()
+        .join("");
+
+    let mut direction = "unknown".to_string();
+
+    if packet.data.len() >= 38 {
+        let src_port = Some(u16::from_be_bytes([packet.data[34], packet.data[35]]));
+        let dst_port = Some(u16::from_be_bytes([packet.data[36], packet.data[37]]));
+
+        if src_port == Some(16000) {
+            direction = "out".to_string();
+        } else if dst_port == Some(16000) {
+            direction = "in".to_string();
+        }
+    }
+
+    PacketInfo {
+        direction,
+        hex_data: if hex_data.len() > 100 {
+            format!("{}...", &hex_data[..100])
+        } else {
+            hex_data
+        },
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    match capture_packets() {
+        Ok(_) => println!("Done"),
+        Err(e) => eprintln!("Error: {}", e),
+    }
+
+    Ok(())
+}

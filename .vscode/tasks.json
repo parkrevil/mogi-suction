@@ -16,32 +16,6 @@
             "problemMatcher": ["$rustc"]
         },
         {
-            "label": "cargo: run server",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["run", "-p", "server"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "cargo: run client",
-            "type": "shell",
-            "command": "cargo",
-            "args": ["run", "-p", "client"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            }
-        },
-        {
             "label": "cargo: test",
             "type": "shell",
             "command": "cargo",
@@ -102,8 +76,8 @@
         {
             "label": "cargo: watch client",
             "type": "shell",
-            "command": "cargo",
-            "args": ["watch", "-x", "run -p client"],
+            "command": "sudo",
+            "args": ["env", "PATH=$PATH", "RUSTUP_TOOLCHAIN=stable", "cargo-watch", "-x", "run -p client"],
             "group": "test",
             "presentation": {
                 "echo": true,
