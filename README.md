@@ -29,9 +29,11 @@ mogi-suction/
 - 포트 8080에서 실행
 
 ### Client (`apps/client`)
-- HTTP 클라이언트
-- 서버에 연결하여 응답 출력
-- 5초 후 자동 종료
+- 패킷 캡처 클라이언트
+- gopacket을 사용한 TCP 패킷 분석
+- 포트 16000의 TCP 트래픽 캡처
+- 이더넷, IP, TCP 레이어 분석
+- 페이로드 내용 출력 (UTF-8 및 Hex)
 
 ## 시작하기
 
@@ -51,11 +53,17 @@ make watch-server
 
 ### 3. 클라이언트 실행
 ```bash
+# 일반 실행
 make run-client
-```
-또는 개발 모드 (hot reload):
-```bash
+
+# 개발 모드 (hot reload)
 make watch-client
+
+# 패킷 캡처 실행 (sudo 권한 필요)
+sudo ./bin/client
+
+# 개발 모드 (sudo 권한으로 hot reload)
+make watch-client-sudo
 ```
 
 ## 빌드
@@ -71,9 +79,15 @@ make build-server  # 서버만 빌드
 make build-client  # 클라이언트만 빌드
 ```
 
-## API 엔드포인트
+## 기능
 
-### HTTP
+### 패킷 캡처
+- **포트**: TCP 포트 16000
+- **필터**: BPF 필터 `tcp port 16000`
+- **분석**: 이더넷, IP, TCP 레이어
+- **출력**: MAC 주소, IP 주소, 포트, TCP 플래그, 페이로드
+
+### HTTP 서버
 - `GET /` - Hello World 응답
 
 ## 개발 환경
@@ -99,8 +113,9 @@ make build-server      # 서버 빌드
 make build-client      # 클라이언트 빌드
 make run-server        # 서버 실행
 make run-client        # 클라이언트 실행
-make watch-server      # 서버 hot reload
-make watch-client      # 클라이언트 hot reload
+make watch-server          # 서버 hot reload
+make watch-client          # 클라이언트 hot reload
+make watch-client-sudo     # 클라이언트 hot reload (sudo)
 make test              # 테스트 실행
 make clean             # 빌드 아티팩트 정리
 ```

@@ -3,16 +3,16 @@
 # 기본 타겟
 help:
 	@echo "Available commands:"
-	@echo "  make deps              - Install dependencies"
-	@echo "  make build-server      - Build server"
-	@echo "  make build-client      - Build client"
-	@echo "  make build             - Build all"
-	@echo "  make run-server        - Run server"
-	@echo "  make run-client        - Run client"
-	@echo "  make watch-server      - Run server with hot reload"
-	@echo "  make watch-client      - Run client with hot reload"
-	@echo "  make test              - Run tests"
-	@echo "  make clean             - Clean build artifacts"
+	@echo "  make deps                  - Install dependencies"
+	@echo "  make build-server          - Build server"
+	@echo "  make build-client          - Build client"
+	@echo "  make build                 - Build all"
+	@echo "  make run-server            - Run server"
+	@echo "  make run-client            - Run client"
+	@echo "  make watch-server          - Run server with hot reload"
+	@echo "  make watch-client          - Run client with hot reload"
+	@echo "  make test                  - Run tests"
+	@echo "  make clean                 - Clean build artifacts"
 
 # 의존성 설치
 deps:
@@ -50,10 +50,10 @@ watch-server:
 	@echo "Starting server with hot reload..."
 	cd apps/server && $(HOME)/go/bin/air
 
-# 클라이언트 watch 모드 (hot reload)
+# 클라이언트 watch 모드 (sudo 권한으로 hot reload)
 watch-client:
 	@echo "Starting client with hot reload..."
-	cd apps/client && $(HOME)/go/bin/air
+	cd apps/client && sudo env PATH=$(HOME)/go/bin:$$PATH air
 
 # 테스트 실행
 test:
