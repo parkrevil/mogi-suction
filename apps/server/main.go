@@ -14,6 +14,6 @@ func main() {
 	port := ":8080"
 	log.Printf("Server starting on port %s", port)
 	log.Printf("Visit: http://localhost%s", port)
-	
+
 	log.Fatal(http.ListenAndServe(port, nil))
-} 
+}
