@@ -1,19 +1,28 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
-	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello World from Server!")
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	port := ":8080"
-	log.Printf("Server starting on port %s", port)
-	log.Printf("Visit: http://localhost%s", port)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 
-	log.Fatal(http.ListenAndServe(port, nil))
+	go func() {
+		if err := startServer(ctx); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	sig := <-sigCh
+	log.Printf("Received signal %v, shutting down...", sig)
+	cancel()
 }
