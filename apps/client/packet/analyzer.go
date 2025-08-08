@@ -3,6 +3,7 @@ package packet
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 var (
@@ -66,7 +67,7 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 			}
 
 			if dataEncoding != 0 {
-				//println("data encoding: ", dataEncoding)
+				// TODO Brotli 압축 파싱
 				continue
 			}
 
@@ -85,10 +86,14 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 func analyzePayload(payload []byte) {
 	packets := AnalyzePayload(payload)
 	for _, packet := range packets {
-		println(packet.Type)
 		switch packet.Type {
 		case 10308:
-			parseAttack(packet.Content)
+			parsed, err := parseAttack(packet.Content)
+			if err != nil {
+				fmt.Println("parseAttack error: ", err)
+			} else {
+				fmt.Println("parsed: ", parsed)
+			}
 		case 100041:
 			parseAction(packet.Content)
 		case 10299:
