@@ -48,3 +48,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/ 
+
+apps/server/server
+apps/client/client

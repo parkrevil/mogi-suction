@@ -7,14 +7,16 @@ import (
 	"net"
 	"os"
 	filepathpkg "path/filepath"
+	"sync/atomic"
 	"time"
 
 	quic "github.com/quic-go/quic-go"
 )
 
 const (
-	serverPort = 8443
-	bufferSize = 32 << 20
+	serverPort     = 8443
+	bufferSize     = 32 << 20
+	maxConnections = 5000 // 최대 연결 수 제한
 )
 
 func startQUICServer(ctx context.Context) error {
@@ -23,13 +25,20 @@ func startQUICServer(ctx context.Context) error {
 		return err
 	}
 
+	// 연결 수 제한을 위한 카운터
+	var activeConnections int32
+
 	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{Port: serverPort})
 	if err != nil {
 		return err
 	}
 
-	_ = udpConn.SetReadBuffer(bufferSize)
-	_ = udpConn.SetWriteBuffer(bufferSize)
+	if err := udpConn.SetReadBuffer(bufferSize); err != nil {
+		log.Printf("Failed to set read buffer: %v", err)
+	}
+	if err := udpConn.SetWriteBuffer(bufferSize); err != nil {
+		log.Printf("Failed to set write buffer: %v", err)
+	}
 
 	listener, err := quic.Listen(udpConn, tlsConf, &quic.Config{
 		MaxIdleTimeout:  60 * time.Second,
@@ -53,20 +62,40 @@ func startQUICServer(ctx context.Context) error {
 			log.Println("Server shutdown requested")
 			return nil
 		default:
-			conn, err := listener.Accept(context.Background())
+			// Accept 타임아웃 설정으로 블로킹 방지
+			acceptCtx, acceptCancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			conn, err := listener.Accept(acceptCtx)
+			acceptCancel()
+
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil
 				}
 				continue
 			}
-			go handleConnection(ctx, conn)
+			// 연결 수 제한 확인
+			if atomic.LoadInt32(&activeConnections) >= maxConnections {
+				log.Printf("Maximum connections reached (%d), rejecting connection", maxConnections)
+				conn.CloseWithError(0, "server overloaded")
+				continue
+			}
+
+			atomic.AddInt32(&activeConnections, 1)
+			go func() {
+				defer atomic.AddInt32(&activeConnections, -1)
+				handleConnection(ctx, conn)
+			}()
 		}
 	}
 }
 
 func resolveDevTLSPaths() (string, string) {
-	wd, _ := os.Getwd()
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Printf("Failed to get working directory: %v", err)
+		// 기본값 반환
+		return "dev-cert.pem", "dev-key.pem"
+	}
 	root := filepathpkg.Clean(filepathpkg.Join(wd, "..", ".."))
 
 	return filepathpkg.Join(root, "dev-cert.pem"), filepathpkg.Join(root, "dev-key.pem")
@@ -76,7 +105,11 @@ func handleConnection(ctx context.Context, conn *quic.Conn) {
 	defer conn.CloseWithError(0, "server shutdown")
 	log.Printf("Client connected: %s -> %s", conn.RemoteAddr(), conn.LocalAddr())
 
-	stream, err := conn.AcceptStream(context.Background())
+	// AcceptStream 타임아웃 설정으로 블로킹 방지
+	acceptCtx, acceptCancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	stream, err := conn.AcceptStream(acceptCtx)
+	acceptCancel()
+
 	if err != nil {
 		log.Printf("Failed to accept stream: %v", err)
 		return
@@ -94,10 +127,9 @@ func handleConnection(ctx context.Context, conn *quic.Conn) {
 			n, err := stream.Read(buf[:])
 			if n > 0 {
 				total += int64(n)
-				log.Printf("Received %d bytes (total: %d)", n, total)
 			}
 			if err != nil {
-				break
+				return
 			}
 		}
 	}

@@ -37,6 +37,9 @@ func main() {
 
 		if err := quicClient.Connect(connectCtx); err != nil {
 			log.Printf("Failed to connect to QUIC server: %v", err)
+			// TODO: QUIC 서버 연결 실패 시 재시도 로직 추가 필요
+			// TODO: 재시도 간격 및 최대 재시도 횟수 설정 고려
+			cancel()
 			return
 		}
 

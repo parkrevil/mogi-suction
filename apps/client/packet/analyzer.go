@@ -3,7 +3,7 @@ package packet
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
+	"log"
 )
 
 var (
@@ -90,20 +90,30 @@ func analyzePayload(payload []byte) {
 		case 10308:
 			parsed, err := parseAttack(packet.Content)
 			if err != nil {
-				fmt.Println("parseAttack error: ", err)
+				log.Printf("parseAttack error: %v", err)
 			} else {
-				fmt.Println("parsed: ", parsed)
+				log.Printf("parsed: %+v", parsed)
 			}
 		case 100041:
-			parseAction(packet.Content)
+			if err := parseAction(packet.Content); err != nil {
+				log.Printf("parseAction error: %v", err)
+			}
 		case 10299:
-			parseDamage(packet.Content)
+			if err := parseDamage(packet.Content); err != nil {
+				log.Printf("parseDamage error: %v", err)
+			}
 		case 100178:
-			parseHPChanged(packet.Content)
+			if err := parseHPChanged(packet.Content); err != nil {
+				log.Printf("parseHPChanged error: %v", err)
+			}
 		case 10701, 10719:
-			parseSelfDamage(packet.Content)
+			if err := parseSelfDamage(packet.Content); err != nil {
+				log.Printf("parseSelfDamage error: %v", err)
+			}
 		case 100321, 100322:
-			parseItem(packet.Content)
+			if err := parseItem(packet.Content); err != nil {
+				log.Printf("parseItem error: %v", err)
+			}
 		}
 	}
 }

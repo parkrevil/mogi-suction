@@ -23,6 +23,8 @@ func main() {
 		defer close(serverDone)
 		if err := startQUICServer(ctx); err != nil {
 			log.Printf("Server error: %v", err)
+			// 서버 에러 시 적절한 종료 처리
+			return
 		}
 	}()
 

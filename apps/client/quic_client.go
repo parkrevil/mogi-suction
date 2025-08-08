@@ -10,6 +10,11 @@ import (
 	quic "github.com/quic-go/quic-go"
 )
 
+// TODO 연결 끊김 시 재연결 로직 추가
+// TODO 연결 끊김 시 sniffer 종료 로직 추가
+// TODO 재연결 성공 시 sniffer 재시작 로직 추가
+// TODO 연결 끊긴 상태에서 sniffer에서 데이터가 온다면 무시하고 받은 데이터 비우고(버퍼 비우기) sniffer flush
+
 type QUICClient struct {
 	conn    *quic.Conn
 	addr    string
@@ -46,7 +51,11 @@ func (c *QUICClient) SendData(data []byte) error {
 		return fmt.Errorf("not connected")
 	}
 
-	stream, err := c.conn.OpenStreamSync(context.Background())
+	// 스트림 생성 시 타임아웃 설정
+	streamCtx, streamCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer streamCancel()
+
+	stream, err := c.conn.OpenStreamSync(streamCtx)
 	if err != nil {
 		return err
 	}
