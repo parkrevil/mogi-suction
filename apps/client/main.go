@@ -2,63 +2,59 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"mogi-suction/client/packet"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+	"time"
+)
+
+const (
+	quicServerAddr = "localhost:8443"
+	connectTimeout = 10 * time.Second
 )
 
 func main() {
-	fmt.Println("Starting packet capture with TCP reassembly (Goroutines)...")
+	log.Println("Starting packet capture with TCP reassembly and QUIC client...")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 3)
+	// 시그널 처리
+	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer func() {
-		signal.Stop(sigCh)
-		close(sigCh)
-	}()
+	defer signal.Stop(sigCh)
 
-	var shutdownOnce sync.Once
+	// QUIC 클라이언트 연결
+	quicClient := NewQUICClient(quicServerAddr)
+	defer quicClient.Close()
 
-	shutdown := func(reason string) {
-		shutdownOnce.Do(func() {
-			fmt.Printf("\n🛑 Graceful shutdown initiated... (%s)\n", reason)
-
-			cancel()
-		})
-	}
-
+	// QUIC 연결 고루틴
 	go func() {
-		select {
-		case sig := <-sigCh:
-			switch sig {
-			case syscall.SIGINT:
-				shutdown("SIGINT (Ctrl+C)")
-			case syscall.SIGTERM:
-				shutdown("SIGTERM")
-			default:
-				shutdown(fmt.Sprintf("Signal: %v", sig))
-			}
-		case <-ctx.Done():
+		connectCtx, connectCancel := context.WithTimeout(ctx, connectTimeout)
+		defer connectCancel()
+
+		if err := quicClient.Connect(connectCtx); err != nil {
+			log.Printf("Failed to connect to QUIC server: %v", err)
 			return
 		}
+
+		log.Printf("✅ Connected to QUIC server")
+		<-ctx.Done()
 	}()
 
-	err := packet.InitPacketSniffer(ctx)
-	if err != nil {
+	// 패킷 스니퍼 초기화
+	if err := packet.InitPacketSniffer(ctx); err != nil {
 		log.Fatal("Failed to initialize packet sniffer:", err)
 	}
 	defer packet.ClosePacketSniffer()
 
 	packet.StartPacketSniffer()
 
-	<-ctx.Done()
-
+	// 시그널 대기 및 종료
+	<-sigCh
+	log.Println("🛑 Shutting down...")
+	cancel()
 	packet.StopPacketSniffer()
 }

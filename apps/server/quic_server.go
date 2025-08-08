@@ -12,19 +12,22 @@ import (
 	quic "github.com/quic-go/quic-go"
 )
 
-func startServer(ctx context.Context) error {
+const (
+	serverPort = 8443
+	bufferSize = 32 << 20
+)
+
+func startQUICServer(ctx context.Context) error {
 	tlsConf, err := loadTLSConfig(resolveDevTLSPaths())
 	if err != nil {
 		return err
 	}
 
-	port := 8443
-	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{Port: serverPort})
 	if err != nil {
 		return err
 	}
 
-	const bufferSize = 32 << 20
 	_ = udpConn.SetReadBuffer(bufferSize)
 	_ = udpConn.SetWriteBuffer(bufferSize)
 
@@ -34,22 +37,31 @@ func startServer(ctx context.Context) error {
 		EnableDatagrams: false,
 	})
 	if err != nil {
+		udpConn.Close()
 		return err
 	}
-
-	log.Printf("Server listening on udp%s", addr)
-
-	go func() {
-		<-ctx.Done()
+	defer func() {
 		listener.Close()
+		udpConn.Close()
 	}()
 
+	log.Printf("Server listening on udp:%d (buffer: %d MB)", serverPort, bufferSize/(1<<20))
+
 	for {
-		conn, err := listener.Accept(context.Background())
-		if err != nil {
+		select {
+		case <-ctx.Done():
+			log.Println("Server shutdown requested")
 			return nil
+		default:
+			conn, err := listener.Accept(context.Background())
+			if err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
+				continue
+			}
+			go handleConnection(ctx, conn)
 		}
-		go handleConnection(conn)
 	}
 }
 
@@ -60,31 +72,34 @@ func resolveDevTLSPaths() (string, string) {
 	return filepathpkg.Join(root, "dev-cert.pem"), filepathpkg.Join(root, "dev-key.pem")
 }
 
-func handleConnection(conn *quic.Conn) {
+func handleConnection(ctx context.Context, conn *quic.Conn) {
 	defer conn.CloseWithError(0, "server shutdown")
 	log.Printf("Client connected: %s -> %s", conn.RemoteAddr(), conn.LocalAddr())
 
+	stream, err := conn.AcceptStream(context.Background())
+	if err != nil {
+		log.Printf("Failed to accept stream: %v", err)
+		return
+	}
+	defer stream.Close()
+
+	var buf [64 * 1024]byte
+	var total int64
+
 	for {
-		stream, err := conn.AcceptStream(context.Background())
-		if err != nil {
+		select {
+		case <-ctx.Done():
 			return
-		}
-
-		go func(s *quic.Stream) {
-			defer s.Close()
-			var buf [64 * 1024]byte
-			var total int64
-
-			for {
-				n, err := s.Read(buf[:])
-				if n > 0 {
-					total += int64(n)
-				}
-				if err != nil {
-					break
-				}
+		default:
+			n, err := stream.Read(buf[:])
+			if n > 0 {
+				total += int64(n)
+				log.Printf("Received %d bytes (total: %d)", n, total)
 			}
-		}(stream)
+			if err != nil {
+				break
+			}
+		}
 	}
 }
 

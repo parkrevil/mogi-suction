@@ -9,20 +9,27 @@ import (
 )
 
 func main() {
+	log.Println("Starting QUIC server...")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
+	serverDone := make(chan struct{})
 	go func() {
-		if err := startServer(ctx); err != nil {
-			log.Fatalf("Server error: %v", err)
+		defer close(serverDone)
+		if err := startQUICServer(ctx); err != nil {
+			log.Printf("Server error: %v", err)
 		}
 	}()
 
-	sig := <-sigCh
-	log.Printf("Received signal %v, shutting down...", sig)
+	<-sigCh
+	log.Println("🛑 Shutting down...")
 	cancel()
+
+	<-serverDone
+	log.Println("✅ Server shutdown complete")
 }
