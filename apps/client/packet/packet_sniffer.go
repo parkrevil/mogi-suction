@@ -3,7 +3,10 @@ package packet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -20,9 +23,37 @@ var (
 	assembler *reassembly.Assembler
 	ctx       context.Context
 	wg        sync.WaitGroup
+	pcapFile  string // PCAP 파일 경로 (동적으로 설정)
 )
 
-func InitPacketSniffer(context context.Context) error {
+// getDefaultPcapPath 기본 PCAP 파일 경로를 반환합니다
+func getDefaultPcapPath() string {
+	// 현재 실행 파일의 위치를 기준으로 상대 경로 계산
+	if wd, err := os.Getwd(); err == nil {
+		// apps/client에서 실행되는 경우
+		if filepath.Base(wd) == "client" {
+			return "../../samples/raid_glasgivnen.pcap"
+		}
+		// 프로젝트 루트에서 실행되는 경우
+		return "samples/raid_glasgivnen.pcap"
+	}
+
+	// 절대 경로 시도
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, "mogi-suction", "samples", "raid_glasgivnen.pcap")
+}
+
+func init() {
+	pcapFile = getDefaultPcapPath()
+}
+
+// SetPcapFile PCAP 파일 경로를 설정합니다
+func SetPcapFile(filePath string) {
+	pcapFile = filePath
+}
+
+// InitPacketSnifferLive 라이브 네트워크 캡처를 위한 초기화 (기존 기능)
+func InitPacketSnifferLive(context context.Context) error {
 	devices, err := pcap.FindAllDevs()
 	if err != nil {
 		return err
@@ -37,6 +68,60 @@ func InitPacketSniffer(context context.Context) error {
 		return err
 	}
 
+	if err := handle.SetBPFFilter("tcp and port 16000"); err != nil {
+		return err
+	}
+
+	totalPages, pagesPerConnection, _ := calcOptimalParams()
+
+	streamFactory := &tcpStreamFactory{}
+	streamPool := reassembly.NewStreamPool(streamFactory)
+	assembler = reassembly.NewAssembler(streamPool)
+	assembler.MaxBufferedPagesTotal = totalPages
+	assembler.MaxBufferedPagesPerConnection = pagesPerConnection
+
+	ctx = context
+	log.Printf("Initialized live packet capture on device: %s", devices[0].Name)
+	return nil
+}
+
+func InitPacketSniffer(context context.Context) error {
+	// 라이브 네트워크 캡처 (주석처리)
+	/*
+		devices, err := pcap.FindAllDevs()
+		if err != nil {
+			return err
+		}
+
+		if len(devices) == 0 {
+			return errors.New("no network devices found")
+		}
+
+		handle, err = pcap.OpenLive(devices[0].Name, 65535, true, pcap.BlockForever)
+		if err != nil {
+			return err
+		}
+
+		if err := handle.SetBPFFilter("tcp and port 16000"); err != nil {
+			return err
+		}
+	*/
+
+	// PCAP 파일 존재 확인
+	if _, err := os.Stat(pcapFile); os.IsNotExist(err) {
+		return fmt.Errorf("pcap file does not exist: %s", pcapFile)
+	}
+
+	// PCAP 파일 읽기
+	var err error
+	handle, err = pcap.OpenOffline(pcapFile)
+	if err != nil {
+		return fmt.Errorf("failed to open pcap file %s: %w", pcapFile, err)
+	}
+
+	log.Printf("Reading PCAP file: %s", pcapFile)
+
+	// BPF 필터 적용 (PCAP 파일에도 동일하게 적용)
 	if err := handle.SetBPFFilter("tcp and port 16000"); err != nil {
 		return err
 	}

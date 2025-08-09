@@ -47,11 +47,19 @@ func main() {
 		<-ctx.Done()
 	}()
 
-	// 패킷 스니퍼 초기화
+	// 패킷 스니퍼 초기화 (PCAP 파일 모드)
 	if err := packet.InitPacketSniffer(ctx); err != nil {
 		log.Fatal("Failed to initialize packet sniffer:", err)
 	}
 	defer packet.ClosePacketSniffer()
+
+	// 라이브 캡처를 원하는 경우 아래 주석을 해제하고 위 코드를 주석처리
+	/*
+		if err := packet.InitPacketSnifferLive(ctx); err != nil {
+			log.Fatal("Failed to initialize live packet sniffer:", err)
+		}
+		defer packet.ClosePacketSniffer()
+	*/
 
 	packet.StartPacketSniffer()
 

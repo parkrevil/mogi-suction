@@ -95,34 +95,31 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 
 func analyzePayload(payload []byte) {
 	datas := AnalyzePayload(payload)
+
 	for _, data := range datas {
 		switch data.Type {
 		case attackDataType:
 			parsed, err := parseAttack(data.Content)
 			if err != nil {
-				log.Printf("attack error: %v", err)
-			} else {
-				log.Printf("attack: %+v", parsed)
+				log.Printf("parseAttack error: %v", err)
 			}
+
+			log.Printf("attack: %+v", parsed)
+
 		case hpDataType:
 			parsed, err := parseHP(data.Content)
 			if err != nil {
-				log.Printf("HP error: %v", err)
-			} else {
-				log.Printf("HP: %+v", parsed)
+				log.Printf("parseHP error: %v", err)
 			}
+
+			log.Printf("hp: %+v", parsed)
+
 		case actionDataType:
-			if err := parseAction(data.Content); err != nil {
-				log.Printf("parseAction error: %v", err)
-			}
+			parseAction(data.Content)
 		case selfDamageDataType1, selfDamageDataType2:
-			if err := parseSelfDamage(data.Content); err != nil {
-				log.Printf("parseSelfDamage error: %v", err)
-			}
+			parseSelfDamage(data.Content)
 		case itemDataType1, itemDataType2:
-			if err := parseItem(data.Content); err != nil {
-				log.Printf("parseItem error: %v", err)
-			}
+			parseItem(data.Content)
 		}
 	}
 }
