@@ -5,16 +5,6 @@ func parseAction(data []byte) interface{} {
 	return nil
 }
 
-func parseDamage(data []byte) interface{} {
-	// println("parseDamage: ", data)
-	return nil
-}
-
-func parseHPChanged(data []byte) interface{} {
-	// println("parseHPChanged: ", data)
-	return nil
-}
-
 func parseSelfDamage(data []byte) interface{} {
 	// println("parseSelfDamage: ", data)
 	return nil

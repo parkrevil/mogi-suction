@@ -6,15 +6,17 @@ import (
 )
 
 type AttackData struct {
-	UserID   int
-	TargetID int
-	Key1     int
-	Key2     int
+	UserID   uint32
+	TargetID uint32
+	Key1     uint32
+	Key2     uint32
 	Flags    map[string]bool
 }
 
+const attackDataLength = 35
+
 var damageFlagDefs = []struct {
-	index int
+	index uint8
 	name  string
 	mask  byte
 }{
@@ -49,29 +51,26 @@ var damageFlagDefs = []struct {
 }
 
 func parseAttack(data []byte) (AttackData, error) {
-	const expectedSize = 35
-	if len(data) != expectedSize {
-		return AttackData{}, fmt.Errorf("invalid attack packet size: %d (want %d)", len(data), expectedSize)
+	if len(data) != attackDataLength {
+		return AttackData{}, fmt.Errorf("invalid attack packet size: %d (want %d)", len(data), attackDataLength)
 	}
 
-	userID := int(binary.LittleEndian.Uint32(data[0:4]))
+	userID := binary.LittleEndian.Uint32(data[0:4])
 	// data[4:8] is present but unused
-	targetID := int(binary.LittleEndian.Uint32(data[8:12]))
+	targetID := binary.LittleEndian.Uint32(data[8:12])
 	// data[12:16] is present but unused
-	key1 := int(binary.LittleEndian.Uint32(data[16:20]))
-	key2 := int(binary.LittleEndian.Uint32(data[20:24]))
+	key1 := binary.LittleEndian.Uint32(data[16:20])
+	key2 := binary.LittleEndian.Uint32(data[20:24])
 
 	flagData := data[24:31]
 
 	flags := make(map[string]bool, len(damageFlagDefs))
 	for _, def := range damageFlagDefs {
-		var isSet bool
-		if def.index >= 0 && def.index < len(flagData) {
-			isSet = (flagData[def.index] & def.mask) != 0
-		} else {
-			isSet = false
+		flags[def.name] = false
+
+		if def.index < uint8(len(flagData)) {
+			flags[def.name] = (flagData[def.index] & def.mask) != 0
 		}
-		flags[def.name] = isSet
 	}
 
 	return AttackData{

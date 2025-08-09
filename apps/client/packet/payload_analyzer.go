@@ -6,6 +6,16 @@ import (
 	"log"
 )
 
+const (
+	attackDataType      = 10308
+	hpDataType          = 100178
+	actionDataType      = 100041
+	selfDamageDataType1 = 10701
+	selfDamageDataType2 = 10719
+	itemDataType1       = 100321
+	itemDataType2       = 100322
+)
+
 var (
 	startDelimiter        = []byte{0x68, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	startDelimiterLength  = len(startDelimiter)
@@ -84,34 +94,33 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 }
 
 func analyzePayload(payload []byte) {
-	packets := AnalyzePayload(payload)
-	for _, packet := range packets {
-		switch packet.Type {
-		case 10308:
-			parsed, err := parseAttack(packet.Content)
+	datas := AnalyzePayload(payload)
+	for _, data := range datas {
+		switch data.Type {
+		case attackDataType:
+			parsed, err := parseAttack(data.Content)
 			if err != nil {
-				log.Printf("parseAttack error: %v", err)
+				log.Printf("attack error: %v", err)
 			} else {
-				log.Printf("parsed: %+v", parsed)
+				log.Printf("attack: %+v", parsed)
 			}
-		case 100041:
-			if err := parseAction(packet.Content); err != nil {
+		case hpDataType:
+			parsed, err := parseHP(data.Content)
+			if err != nil {
+				log.Printf("HP error: %v", err)
+			} else {
+				log.Printf("HP: %+v", parsed)
+			}
+		case actionDataType:
+			if err := parseAction(data.Content); err != nil {
 				log.Printf("parseAction error: %v", err)
 			}
-		case 10299:
-			if err := parseDamage(packet.Content); err != nil {
-				log.Printf("parseDamage error: %v", err)
-			}
-		case 100178:
-			if err := parseHPChanged(packet.Content); err != nil {
-				log.Printf("parseHPChanged error: %v", err)
-			}
-		case 10701, 10719:
-			if err := parseSelfDamage(packet.Content); err != nil {
+		case selfDamageDataType1, selfDamageDataType2:
+			if err := parseSelfDamage(data.Content); err != nil {
 				log.Printf("parseSelfDamage error: %v", err)
 			}
-		case 100321, 100322:
-			if err := parseItem(packet.Content); err != nil {
+		case itemDataType1, itemDataType2:
+			if err := parseItem(data.Content); err != nil {
 				log.Printf("parseItem error: %v", err)
 			}
 		}
