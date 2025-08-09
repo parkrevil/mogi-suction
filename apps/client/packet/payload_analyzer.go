@@ -18,9 +18,7 @@ const (
 
 var (
 	startDelimiter        = []byte{0x68, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	startDelimiterLength  = len(startDelimiter)
 	endDelimiter          = []byte{0xe3, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	endDelimiterLength    = len(endDelimiter)
 	segmentMetadataLength = 9
 )
 
@@ -46,7 +44,7 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 		}
 		startIdx := consumed + relStart
 
-		scanFrom := startIdx + startDelimiterLength
+		scanFrom := startIdx + len(startDelimiter)
 		if scanFrom > payloadLength {
 			break
 		}
@@ -87,7 +85,7 @@ func AnalyzePayload(payload []byte) []AnalyzedData {
 			})
 		}
 
-		consumed = endIdx + endDelimiterLength
+		consumed = endIdx + len(endDelimiter)
 	}
 
 	return analyzed
@@ -115,7 +113,12 @@ func analyzePayload(payload []byte) {
 			log.Printf("hp: %+v", parsed)
 
 		case actionDataType:
-			parseAction(data.Content)
+			parsed, err := parseAction(data.Content)
+			if err != nil {
+				log.Printf("parseAction error: %v", err)
+			}
+
+			log.Printf("action: %+v", parsed)
 		case selfDamageDataType1, selfDamageDataType2:
 			parseSelfDamage(data.Content)
 		case itemDataType1, itemDataType2:
